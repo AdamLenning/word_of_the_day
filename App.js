@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect } from 'react';
-import { Text, View, TextInput, Button, TouchableOpacity, StatusBar, FlatList } from 'react-native';
+import { Text, View, TextInput, Button, TouchableOpacity, StatusBar, FlatList, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon, Overlay } from 'react-native-elements';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
@@ -14,6 +14,7 @@ export default function App() {
   const [isOverlayVisible, setOverlayVisible] = useState(false);
   const [showLearnedWords, setShowLearnedWords] = useState(false);
   const [flippedIndexes, setFlippedIndexes] = useState([]);
+  const [isSettingsModalVisible, setSettingsModalVisible] = useState(false);
 
   useEffect(() => {
     loadWords();
@@ -25,11 +26,11 @@ export default function App() {
       const savedLearnedWords = await AsyncStorage.getItem('learnedWords');
       if (savedUnlearnedWords) {
         const parsedUnlearnedWords = JSON.parse(savedUnlearnedWords);
-        setUnlearnedWords(parsedUnlearnedWords);
+        setUnlearnedWords(parsedUnlearnedWords.sort((a, b) => a.text.localeCompare(b.text)));
         setFlippedIndexes(new Array(parsedUnlearnedWords.length).fill(false));
       }
       if (savedLearnedWords) {
-        setLearnedWords(JSON.parse(savedLearnedWords));
+        setLearnedWords(JSON.parse(savedLearnedWords).sort((a, b) => a.text.localeCompare(b.text)));
       }
     } catch (e) {
       console.error(e);
@@ -48,6 +49,7 @@ export default function App() {
   const addWord = async () => {
     if (newWord.trim() === '' || newDefinition.trim() === '') return;
     const updatedUnlearnedWords = [...unlearnedWords, { text: newWord, definitions: [newDefinition], currentDefIndex: 0 }];
+    updatedUnlearnedWords.sort((a, b) => a.text.localeCompare(b.text));
     setUnlearnedWords(updatedUnlearnedWords);
     setFlippedIndexes([...flippedIndexes, false]);
     saveWords(updatedUnlearnedWords, learnedWords);
@@ -68,6 +70,7 @@ export default function App() {
     const word = unlearnedWords[index];
     const updatedUnlearnedWords = unlearnedWords.filter((_, i) => i !== index);
     const updatedLearnedWords = [...learnedWords, word];
+    updatedLearnedWords.sort((a, b) => a.text.localeCompare(b.text));
     setUnlearnedWords(updatedUnlearnedWords);
     setLearnedWords(updatedLearnedWords);
     setFlippedIndexes(flippedIndexes.filter((_, i) => i !== index));
@@ -122,64 +125,43 @@ export default function App() {
     <GestureHandlerRootView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <TouchableOpacity
-        style={styles.toggleButton}
-        onPress={() => setShowLearnedWords(!showLearnedWords)}
+        style={styles.settingsButton}
+        onPress={() => setSettingsModalVisible(true)}
       >
-        <Text style={styles.toggleButtonText}>
-          {showLearnedWords ? 'Show Unlearned Words' : 'Show Learned Words'}
-        </Text>
+        <Icon name="settings" size={30} color="white" />
       </TouchableOpacity>
-      {showLearnedWords ? (
-        learnedWords.length > 0 ? (
-          <View style={styles.listContainer}>
+      <View style={styles.listContainer}>
+        {showLearnedWords ? (
+          learnedWords.length > 0 ? (
             <FlatList
               data={learnedWords}
               renderItem={renderItem}
               keyExtractor={(item, index) => index.toString()}
             />
-          </View>
+          ) : (
+            <View style={styles.centeredContainer}>
+              <Text>No words learned yet.</Text>
+            </View>
+          )
         ) : (
-          <View style={styles.centeredContainer}>
-            <Text>No words learned yet.</Text>
-          </View>
-        )
-      ) : (
-        unlearnedWords.length > 0 ? (
-          <View style={styles.listContainer}>
+          unlearnedWords.length > 0 ? (
             <FlatList
               data={unlearnedWords}
               renderItem={renderItem}
               keyExtractor={(item, index) => index.toString()}
             />
-          </View>
-        ) : (
-          <View style={styles.centeredContainer}>
-            <Text>No words added yet.</Text>
-          </View>
-        )
-      )}
-      <TouchableOpacity
-        style={styles.clearButton}
-        onPress={clearWords}
-      >
-        <Icon name="delete" size={30} color="white" />
-      </TouchableOpacity>
+          ) : (
+            <View style={styles.centeredContainer}>
+              <Text>No words added yet.</Text>
+            </View>
+          )
+        )}
+      </View>
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => setOverlayVisible(true)}
       >
         <Icon name="add" size={30} color="white" />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.shuffleButton}
-        onPress={() => {
-          const shuffledWords = [...unlearnedWords].sort(() => Math.random() - 0.5);
-          setUnlearnedWords(shuffledWords);
-          saveWords(shuffledWords, learnedWords);
-          setFlippedIndexes(new Array(shuffledWords.length).fill(false));
-        }}
-      >
-        <Icon name="shuffle" size={30} color="white" />
       </TouchableOpacity>
       {isOverlayVisible && (
         <Overlay isVisible={isOverlayVisible} onBackdropPress={() => setOverlayVisible(false)}>
@@ -200,6 +182,38 @@ export default function App() {
           </View>
         </Overlay>
       )}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isSettingsModalVisible}
+        onRequestClose={() => setSettingsModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => {
+                setShowLearnedWords(!showLearnedWords);
+                setSettingsModalVisible(false);
+              }}
+            >
+              <Text style={styles.modalButtonText}>
+                {showLearnedWords ? 'Show Unlearned Words' : 'Show Learned Words'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => {
+                clearWords();
+                setSettingsModalVisible(false);
+              }}
+            >
+              <Text style={styles.modalButtonText}>Delete All Words</Text>
+            </TouchableOpacity>
+            <Button title="Close" onPress={() => setSettingsModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
     </GestureHandlerRootView>
   );
 }
