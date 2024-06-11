@@ -1,10 +1,20 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect } from 'react';
-import { Text, View, TextInput, Button, TouchableOpacity, StatusBar, FlatList, Modal } from 'react-native';
+import { Text, View, TextInput, Button, TouchableOpacity, StatusBar, FlatList, Modal, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon, Overlay } from 'react-native-elements';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
+import * as Notifications from 'expo-notifications';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import styles from './styles';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 export default function App() {
   const [unlearnedWords, setUnlearnedWords] = useState([]);
@@ -15,15 +25,21 @@ export default function App() {
   const [showLearnedWords, setShowLearnedWords] = useState(false);
   const [flippedIndexes, setFlippedIndexes] = useState([]);
   const [isSettingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [notificationTime, setNotificationTime] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [timeSelected, setTimeSelected] = useState(false);
 
   useEffect(() => {
     loadWords();
+    loadNotificationTime();
+    registerForPushNotificationsAsync();
   }, []);
 
   const loadWords = async () => {
     try {
       const savedUnlearnedWords = await AsyncStorage.getItem('unlearnedWords');
       const savedLearnedWords = await AsyncStorage.getItem('learnedWords');
+      const savedNotificationList = await AsyncStorage.getItem('notifiedWords');
       if (savedUnlearnedWords) {
         const parsedUnlearnedWords = JSON.parse(savedUnlearnedWords);
         setUnlearnedWords(parsedUnlearnedWords.sort((a, b) => a.text.localeCompare(b.text)));
@@ -31,6 +47,20 @@ export default function App() {
       }
       if (savedLearnedWords) {
         setLearnedWords(JSON.parse(savedLearnedWords).sort((a, b) => a.text.localeCompare(b.text)));
+      }
+      if (savedNotificationList) {
+        setNotifiedWords(JSON.parse(savedNotificationList));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadNotificationTime = async () => {
+    try {
+      const savedTime = await AsyncStorage.getItem('notificationTime');
+      if (savedTime) {
+        setNotificationTime(new Date(savedTime));
       }
     } catch (e) {
       console.error(e);
@@ -41,6 +71,14 @@ export default function App() {
     try {
       await AsyncStorage.setItem('unlearnedWords', JSON.stringify(unlearnedWords));
       await AsyncStorage.setItem('learnedWords', JSON.stringify(learnedWords));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const saveNotificationList = async (notifiedWords) => {
+    try {
+      await AsyncStorage.setItem('notifiedWords', JSON.stringify(notifiedWords));
     } catch (e) {
       console.error(e);
     }
@@ -64,6 +102,7 @@ export default function App() {
     setFlippedIndexes([]);
     await AsyncStorage.removeItem('unlearnedWords');
     await AsyncStorage.removeItem('learnedWords');
+    await AsyncStorage.removeItem('notifiedWords');
   };
 
   const markAsLearned = (index) => {
@@ -79,6 +118,101 @@ export default function App() {
 
   const flipCard = (index) => {
     setFlippedIndexes(flippedIndexes.map((flipped, i) => (i === index ? !flipped : flipped)));
+  };
+
+  const handleTimeChange = (event, selectedTime) => {
+    const currentTime = selectedTime || notificationTime;
+    setShowTimePicker(Platform.OS === 'ios');
+    setNotificationTime(currentTime);
+    setTimeSelected(true);
+  };
+
+  const confirmTimeSelection = () => {
+    setShowTimePicker(false);
+    saveNotificationTime(notificationTime);
+    scheduleNotification(notificationTime);
+  };
+
+  const saveNotificationTime = async (time) => {
+    try {
+      await AsyncStorage.setItem('notificationTime', time.toISOString());
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const scheduleNotification = async (time) => {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+
+    const trigger = new Date(time);
+    trigger.setSeconds(0);
+    if (trigger <= new Date()) {
+      trigger.setDate(trigger.getDate() + 1);
+    }
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Word of the Day",
+        body: "Check your app to see today's word!",
+      },
+      trigger: {
+        hour: trigger.getHours(),
+        minute: trigger.getMinutes(),
+        repeats: true,
+      },
+    });
+  };
+
+  const sendRandomWordNotification = async () => {
+    const notifiedWords = await AsyncStorage.getItem('notifiedWords');
+    const notifiedWordsList = notifiedWords ? JSON.parse(notifiedWords) : [];
+    const availableWords = unlearnedWords.filter(word => !notifiedWordsList.includes(word.text));
+
+    if (availableWords.length === 0) {
+      notifiedWordsList.length = 0;
+      await AsyncStorage.setItem('notifiedWords', JSON.stringify(notifiedWordsList));
+    }
+
+    if (availableWords.length > 0) {
+      const randomIndex = Math.floor(Math.random() * availableWords.length);
+      const word = availableWords[randomIndex];
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `Word of the Day: ${word.text}`,
+          body: word.definitions[0],
+        },
+        trigger: null,
+      });
+
+      notifiedWordsList.push(word.text);
+      await AsyncStorage.setItem('notifiedWords', JSON.stringify(notifiedWordsList));
+    } else {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "No Words Available",
+          body: "Add more words to start learning!",
+        },
+        trigger: null,
+      });
+    }
+  };
+
+  const registerForPushNotificationsAsync = async () => {
+    if (Platform.OS === 'ios') {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        alert('Failed to get push token for push notification!');
+        return;
+      }
+    }
+
+    Notifications.addNotificationReceivedListener(sendRandomWordNotification);
   };
 
   const renderLeftActions = () => (
@@ -210,6 +344,28 @@ export default function App() {
             >
               <Text style={styles.modalButtonText}>Delete All Words</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Text style={styles.modalButtonText}>Set Notification Time</Text>
+            </TouchableOpacity>
+            {showTimePicker && (
+              <DateTimePicker
+                value={notificationTime}
+                mode="time"
+                display="default"
+                onChange={handleTimeChange}
+              />
+            )}
+            {timeSelected && (
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={confirmTimeSelection}
+              >
+                <Icon name="check" size={30} color="white" />
+              </TouchableOpacity>
+            )}
             <Button title="Close" onPress={() => setSettingsModalVisible(false)} />
           </View>
         </View>
