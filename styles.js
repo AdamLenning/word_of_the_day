@@ -116,12 +116,4 @@ export default StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
-  confirmButton: {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 5,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 });
