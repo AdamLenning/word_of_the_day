@@ -1,19 +1,10 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect } from 'react';
-import { Text, View, TextInput, Button, TouchableOpacity, StatusBar, FlatList, Modal, Platform } from 'react-native';
+import { Text, View, TextInput, Button, TouchableOpacity, StatusBar, FlatList, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon, Overlay } from 'react-native-elements';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
-import * as Notifications from 'expo-notifications';
 import styles from './styles';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
 
 export default function App() {
   const [unlearnedWords, setUnlearnedWords] = useState([]);
@@ -27,8 +18,6 @@ export default function App() {
 
   useEffect(() => {
     loadWords();
-    registerForPushNotificationsAsync();
-    scheduleDailyNotification();
   }, []);
 
   const loadWords = async () => {
@@ -90,57 +79,6 @@ export default function App() {
 
   const flipCard = (index) => {
     setFlippedIndexes(flippedIndexes.map((flipped, i) => (i === index ? !flipped : flipped)));
-  };
-
-  const scheduleDailyNotification = async () => {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-
-    const trigger = new Date();
-    trigger.setHours(21);
-    trigger.setMinutes(0);
-    trigger.setSeconds(0);
-
-    if (availableWords.length > 0) {
-      const randomIndex = Math.floor(Math.random() * availableWords.length);
-      const word = availableWords[randomIndex];
-
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: `Word of the Day: ${word.text}`,
-          body: word.definitions[0],
-        },
-        trigger: {
-          seconds: 30, 
-          repeats: true
-        },
-      });
-    } else {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "No Words Available",
-          body: "Add more words to start learning!",
-        },
-        trigger: {
-          seconds: 30, 
-          repeats: true
-        },
-      });
-    }
-  };
-
-  const registerForPushNotificationsAsync = async () => {
-    if (Platform.OS === 'ios') {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      if (finalStatus !== 'granted') {
-        alert('Failed to get push token for push notification!');
-        return;
-      }
-    }
   };
 
   const renderLeftActions = () => (
