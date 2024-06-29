@@ -1,10 +1,19 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect } from 'react';
-import { Text, View, TextInput, Button, TouchableOpacity, StatusBar, FlatList, Modal } from 'react-native';
+import { Text, View, TextInput, Button, TouchableOpacity, StatusBar, FlatList, Modal, Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon, Overlay } from 'react-native-elements';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
+import * as Notifications from 'expo-notifications';
 import styles from './styles';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 export default function App() {
   const [unlearnedWords, setUnlearnedWords] = useState([]);
@@ -18,6 +27,7 @@ export default function App() {
 
   useEffect(() => {
     loadWords();
+    registerForPushNotificationsAsync();
   }, []);
 
   const loadWords = async () => {
@@ -56,6 +66,9 @@ export default function App() {
     setNewWord('');
     setNewDefinition('');
     setOverlayVisible(false);
+
+    // Re-run the notification scheduling function
+    scheduleRepeatingNotification();
   };
 
   const clearWords = async () => {
@@ -79,6 +92,65 @@ export default function App() {
 
   const flipCard = (index) => {
     setFlippedIndexes(flippedIndexes.map((flipped, i) => (i === index ? !flipped : flipped)));
+  };
+
+  const scheduleRepeatingNotification = async () => {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+  
+      if (unlearnedWords.length === 0) {
+        Alert.alert('No unlearned words available', 'Please add some words to the list.');
+        return;
+      }
+  
+      // Randomize the order of the unlearned words
+      const shuffledWords = unlearnedWords.sort(() => Math.random() - 0.5);
+  
+      shuffledWords.forEach((word, index) => {
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: `Today's word: ${word.text}`,
+            body: word.definitions[0],
+          },
+          trigger: {
+            seconds: 30 * (index + 1), // Schedule each notification 30 seconds apart
+          },
+        });
+      });
+  
+      Alert.alert('Success', 'Notifications have been scheduled.');
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to schedule notifications.');
+    }
+  };  
+
+  const registerForPushNotificationsAsync = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      }
+      if (Platform.OS === 'ios') {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus !== 'granted') {
+          alert('Failed to get push token for push notification!');
+          return;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to register for push notifications.');
+    }
   };
 
   const renderLeftActions = () => (
@@ -209,6 +281,12 @@ export default function App() {
               }}
             >
               <Text style={styles.modalButtonText}>Delete All Words</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={scheduleRepeatingNotification}
+            >
+              <Text style={styles.modalButtonText}>Schedule Notifications</Text>
             </TouchableOpacity>
             <Button title="Close" onPress={() => setSettingsModalVisible(false)} />
           </View>
