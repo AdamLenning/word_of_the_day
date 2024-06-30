@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "WordOfTheDayApp",
-    "slug": "WordOfTheDayApp",
+    "slug": "word-of-the-day",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,16 +12,24 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.arl949.wordoftheday"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.arl949.wordoftheday"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "59b48d95-baec-4f5d-9928-48898dedfebd"
+      }
+    },
+    "owner": "arl949"
   }
 }
