@@ -113,12 +113,10 @@ export default function App() {
             body: word.definitions[0],
           },
           trigger: {
-            seconds: 30 * (index + 1), // Schedule each notification 30 seconds apart
+            seconds: 24 * 60 * 60 * (index + 1), // Schedule each notification 24 hours apart
           },
         });
       });
-  
-      Alert.alert('Success', 'Notifications have been scheduled.');
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Failed to schedule notifications.');
