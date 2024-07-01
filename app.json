@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "WordOfTheDayApp",
-    "slug": "word-of-the-day",
+    "name": "VocabVoyage",
+    "slug": "vocab-voyage",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
