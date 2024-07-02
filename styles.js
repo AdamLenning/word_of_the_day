@@ -9,7 +9,7 @@ export default StyleSheet.create({
   },
   listContainer: {
     flex: 1,
-    marginTop: 90, // Adjust to place the list below the icons
+    marginTop: 20, // Adjust to place the list below the icons
     marginBottom: 70,
   },
   cardContainer: {
@@ -62,7 +62,7 @@ export default StyleSheet.create({
   },
   settingsButton: {
     position: 'absolute',
-    top: 60, // Move down for iPhone notch
+    bottom: 20,
     left: 20,
     width: 60,
     height: 60,
